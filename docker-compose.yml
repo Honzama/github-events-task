@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  ofelia:
+    image: mcuadros/ofelia:latest
+    container_name: ofelia
+    depends_on:
+      - flask
+    command: daemon --docker
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+  flask:
+    build: ./flask
+    restart: always
+    command: >
+      sh -c "python manage.py create_db &&
+             python manage.py load_events &&
+             python manage.py run -h 0.0.0.0 -p 8080"
+    volumes:
+      - ./flask/:/usr/src/app/
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./.env.dev
+    depends_on:
+      - db
+    labels:
+      ofelia.enabled: "true"
+      ofelia.job-exec.load-github-events.image: "flask"
+      ofelia.job-exec.load-github-events.schedule: "@every 1m"
+      ofelia.job-exec.load-github-events.command: "python manage.py load_events"
+  db:
+    image: postgres:14.5-alpine
+    restart: always
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_USER=github_events
+      - POSTGRES_PASSWORD=github_events
+      - POSTGRES_DB=github_events_db
+      - POSTGRES_HOST=localhost
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - "8000:8080"
+volumes:
+  postgres_data:
